@@ -100,6 +100,15 @@ class AppDatabase extends _$AppDatabase {
   Future<int> deleteMeal(int id) =>
       (delete(meals)..where((m) => m.id.equals(id))).go();
 
+  Stream<List<Meal>> watchMealsForDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+    return (select(meals)
+          ..where((m) => m.createdAt.isBetweenValues(startOfDay, endOfDay))
+          ..orderBy([(m) => OrderingTerm.desc(m.createdAt)]))
+        .watch();
+  }
+
   // Weight Entries CRUD
   Future<List<WeightEntry>> getAllWeightEntries() =>
       (select(weightEntries)..orderBy([(w) => OrderingTerm.desc(w.date)]))
@@ -118,6 +127,17 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> deleteWeightEntry(int id) =>
       (delete(weightEntries)..where((w) => w.id.equals(id))).go();
+
+  Stream<List<WeightEntry>> watchAllWeightEntries() =>
+      (select(weightEntries)..orderBy([(w) => OrderingTerm.desc(w.date)]))
+          .watch();
+
+  Stream<WeightEntry?> watchLatestWeight() {
+    return (select(weightEntries)
+          ..orderBy([(w) => OrderingTerm.desc(w.date)])
+          ..limit(1))
+        .watchSingleOrNull();
+  }
 
   // Exercises CRUD
   Future<List<Exercise>> getAllExercises() => select(exercises).get();
@@ -147,6 +167,14 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> deleteWorkoutSession(int id) =>
       (delete(workoutSessions)..where((w) => w.id.equals(id))).go();
+
+  Stream<List<WorkoutSession>> watchWorkoutSessionsForDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+    return (select(workoutSessions)
+          ..where((w) => w.date.isBetweenValues(startOfDay, endOfDay)))
+        .watch();
+  }
 
   // Workout Sets CRUD
   Future<List<WorkoutSet>> getSetsForSession(int sessionId) {

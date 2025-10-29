@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:vibelift/main.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -9,25 +9,10 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _fadeController;
-  late Animation<double> _fadeAnimation;
-
+class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeIn),
-    );
-
-    _fadeController.forward();
 
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
@@ -47,154 +32,91 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   @override
-  void dispose() {
-    _fadeController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // Subtle green gradient background
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFF0FDF4),
-                  Colors.white,
-                  Colors.white,
-                ],
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              const Spacer(flex: 2),
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 0.8,
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: SvgPicture.string(
+                    _illustration,
+                    fit: BoxFit.scaleDown,
+                  ),
+                ),
               ),
-            ),
-          ),
-          // Content
-          FadeTransition(
-            opacity: _fadeAnimation,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Avocado animation with scale effect
-                  TweenAnimationBuilder(
-                    tween: Tween<double>(begin: 0.8, end: 1.0),
-                    duration: const Duration(milliseconds: 1200),
-                    curve: Curves.elasticOut,
-                    builder: (context, double scale, child) {
-                      return Transform.scale(
-                        scale: scale,
-                        child: child,
-                      );
-                    },
-                    child: Lottie.network(
-                      'https://lottie.host/97b2058a-4b90-44ba-87a1-e7ceecdee3fd/0MLnZ4u6Tx.lottie',
-                      width: 300,
-                      height: 300,
-                      fit: BoxFit.contain,
-                      repeat: true,
-                      animate: true,
-                      frameRate: const FrameRate(60),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  // App name with gradient
-                  TweenAnimationBuilder(
-                    tween: Tween<double>(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 1000),
-                    curve: Curves.easeOut,
-                    builder: (context, double value, child) {
-                      return Opacity(
-                        opacity: value,
-                        child: Transform.translate(
-                          offset: Offset(0, 20 * (1 - value)),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
-                        colors: [
-                          Color(0xFF10B981),
-                          Color(0xFF059669),
-                          Color(0xFF34D399)
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ).createShader(bounds),
-                      child: const Text(
-                        'VibeLift',
-                        style: TextStyle(
-                          fontSize: 56,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: -1,
+              const Spacer(flex: 2),
+              Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  alignment: Alignment.center,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFF6EE7B7), Color(0xFF9FDFCD)],
+                        ).createShader(bounds),
+                        child: const Text(
+                          'VibeLift',
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Tagline
-                  TweenAnimationBuilder(
-                    tween: Tween<double>(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 1200),
-                    curve: Curves.easeOut,
-                    builder: (context, double value, child) {
-                      return Opacity(
-                        opacity: value,
-                        child: child,
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withAlpha(26),
-                        borderRadius: BorderRadius.circular(20),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "We're setting things up for you.\nThis will only take a moment.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
                       ),
-                      child: const Text(
-                        'Track • Train • Transform',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF059669),
-                          letterSpacing: 1.5,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 40),
+                      Transform.scale(
+                        scale: 1.2,
+                        child: const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation(Color(0xFF6EE7B7)),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
-                  const SizedBox(height: 60),
-                  // Loading indicator
-                  TweenAnimationBuilder(
-                    tween: Tween<double>(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 1500),
-                    curve: Curves.easeInOut,
-                    builder: (context, double value, child) {
-                      return Opacity(
-                        opacity: value,
-                        child: child,
-                      );
-                    },
-                    child: SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        valueColor: AlwaysStoppedAnimation(
-                          const Color(0xFF10B981).withAlpha(128),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
+
+const _illustration = '''
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M590.84 242.27H877.06C880.922 242.27 884.625 243.804 887.355 246.535C890.086 249.265 891.62 252.968 891.62 256.83V543C891.62 546.862 890.086 550.565 887.355 553.295C884.625 556.026 880.922 557.56 877.06 557.56H805.37C744.62 557.56 686.358 533.431 643.397 490.479C600.435 447.527 576.293 389.27 576.28 328.52V256.83C576.28 252.968 577.814 249.265 580.545 246.535C583.275 243.804 586.978 242.27 590.84 242.27Z" fill="#10B981"/>
+<path d="M270.444 736.1C275.627 720.148 266.897 703.015 250.945 697.832C234.993 692.649 217.86 701.378 212.677 717.33C207.494 733.282 216.224 750.416 232.176 755.599C248.128 760.782 265.261 752.052 270.444 736.1Z" fill="#34D399"/>
+<path d="M320.604 675.4C323.104 667.705 318.893 659.44 311.198 656.94C303.503 654.44 295.238 658.651 292.738 666.346C290.238 674.041 294.449 682.306 302.144 684.806C309.839 687.306 318.104 683.095 320.604 675.4Z" fill="#6EE7B7"/>
+<path d="M220.94 658.42L182.76 630.24" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M235.32 647.7L228.22 634.87" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M250.88 643.74L254.21 605.75" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M391.35 766.91C443 684.73 495.94 512.78 505.11 412.34C505.282 404.783 508.398 397.591 513.794 392.298C519.191 387.004 526.441 384.027 534 384V384C541.665 384 549.016 387.045 554.435 392.465C559.855 397.884 562.9 405.235 562.9 412.9V714.26C552.9 758.54 534.99 800.12 477.08 801.67L453.67 840.88" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M507.52 656.43V558.58C507.52 551.236 510.437 544.193 515.63 539C520.823 533.807 527.866 530.89 535.21 530.89C538.846 530.89 542.447 531.606 545.807 532.998C549.166 534.389 552.219 536.429 554.79 539C557.361 541.572 559.401 544.624 560.792 547.984C562.184 551.343 562.9 554.944 562.9 558.58V656.42" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M370.77 769.02L463.36 878.91L434.95 912.74L337.49 797.06L370.77 769.02Z" fill="#10B981"/>
+<path d="M370.77 742.49L463.36 852.38L434.95 886.21L337.49 770.53L370.77 742.49Z" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M733.95 766.91C682.33 684.73 629.36 512.78 620.19 412.33C620.015 404.773 616.897 397.582 611.499 392.291C606.1 386.999 598.849 384.024 591.29 384V384C583.625 384 576.274 387.045 570.855 392.465C565.435 397.884 562.39 405.235 562.39 412.9V714.26C572.39 758.54 590.3 800.12 648.21 801.67L671.62 840.88" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M617.77 656.43V558.58C617.77 551.236 614.853 544.193 609.66 539C604.467 533.807 597.424 530.89 590.08 530.89V530.89C586.444 530.89 582.843 531.606 579.484 532.998C576.124 534.389 573.071 536.429 570.5 539C567.929 541.572 565.889 544.624 564.498 547.984C563.106 551.343 562.39 554.944 562.39 558.58V656.42" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M754.53 767.49L661.93 877.38L690.35 911.21L787.81 795.53L754.53 767.49Z" fill="#34D399"/>
+<path d="M754.53 742.49L661.93 852.38L690.35 886.21L787.81 770.53L754.53 742.49Z" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M524.65 350.05L462.06 269.05" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M561.06 345.64V182.05" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M597.05 345.64L662.72 279.97" stroke="#0E0E0E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+''';

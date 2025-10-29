@@ -7,9 +7,7 @@ import 'package:vibelift/core/constants.dart';
 import 'package:vibelift/core/theme/app_colors.dart';
 import 'package:vibelift/data/db/database.dart';
 import 'package:vibelift/data/providers/database_provider.dart';
-import 'package:vibelift/data/providers/settings_provider.dart';
 import 'package:vibelift/widgets/custom_button.dart';
-import 'package:vibelift/widgets/lottie_loader.dart';
 
 class LiftingTrackerScreen extends ConsumerStatefulWidget {
   const LiftingTrackerScreen({super.key});
@@ -23,18 +21,15 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
   @override
   void initState() {
     super.initState();
-    // Seed default exercises
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(databaseProvider).seedDefaultExercises();
     });
   }
 
   Future<void> _showStartWorkoutDialog() async {
-    final fitnessGoal = ref.read(fitnessGoalProvider);
-    final workoutDays = AppConstants.workoutSplits[fitnessGoal] ??
-        AppConstants.workoutSplits['Bulk']!;
-    final today = DateTime.now().weekday - 1; // 0 = Monday
-    final suggestedWorkout = workoutDays[today % workoutDays.length];
+    final pplSplit = AppConstants.workoutSplits['PPL']!;
+    final today = (DateTime.now().weekday - 1) % 7;
+    final suggestedWorkout = pplSplit[today];
 
     final TextEditingController nameController =
         TextEditingController(text: suggestedWorkout);
@@ -49,9 +44,9 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              const Text(
                 'Start Workout',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
               TextField(
@@ -121,16 +116,8 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Container(
+            Padding(
               padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFF0FDF4), Colors.white],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
               child: Row(
                 children: [
                   Column(
@@ -161,193 +148,166 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
                     ],
                   ),
                   const Spacer(),
-                  CustomIconButton(
-                    icon: CupertinoIcons.add,
-                    color: const Color(0xFF10B981),
-                    onPressed: _showStartWorkoutDialog,
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withAlpha(26),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _showStartWorkoutDialog,
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Icon(CupertinoIcons.add,
+                            color: Color(0xFF10B981), size: 24),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-
-            // Weekly Split Preview
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'PPL Weekly Split',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildWeeklySplit(pplSplit),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Workout History
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Recent Workouts',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
             Expanded(
-              child: workoutSessionsAsync.when(
-                data: (sessions) {
-                  if (sessions.isEmpty) {
-                    return SingleChildScrollView(
-                      child: Center(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Card(
                         child: Padding(
-                          padding: const EdgeInsets.all(40),
+                          padding: const EdgeInsets.all(20),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                CupertinoIcons.sportscourt,
-                                size: 64,
-                                color: const Color(0xFF10B981).withAlpha(128),
+                              const Text(
+                                'PPL Weekly Split',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               const SizedBox(height: 16),
-                              Text(
-                                'No workouts yet',
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Start your first workout!',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
+                              _buildWeeklySplit(pplSplit),
                             ],
                           ),
                         ),
                       ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: sessions.length,
-                    itemBuilder: (context, index) {
-                      final session = sessions[index];
-                      return Dismissible(
-                        key: Key(session.id.toString()),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Icon(CupertinoIcons.delete,
-                              color: Colors.white),
+                    ),
+                    const SizedBox(height: 24),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Recent Workouts',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        onDismissed: (_) async {
-                          final database = ref.read(databaseProvider);
-                          await database.deleteWorkoutSession(session.id);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Card(
-                            child: InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => WorkoutSessionScreen(
-                                        sessionId: session.id),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    workoutSessionsAsync.when(
+                      data: (sessions) {
+                        if (sessions.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.all(40),
+                            child: Column(
+                              children: [
+                                Icon(CupertinoIcons.sportscourt,
+                                    size: 64, color: Colors.grey),
+                                SizedBox(height: 16),
+                                Text('No workouts yet',
+                                    style: TextStyle(fontSize: 18)),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return Column(
+                          children: sessions.map((session) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 6),
+                              child: Card(
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            WorkoutSessionScreen(
+                                                sessionId: session.id),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF10B981)
+                                                .withAlpha(26),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                              CupertinoIcons.flame_fill,
+                                              color: Color(0xFF10B981)),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                session.name,
+                                                style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight:
+                                                        FontWeight.bold),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                DateFormat(
+                                                        'MMM d, yyyy • HH:mm')
+                                                    .format(session.date),
+                                                style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.grey),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const Icon(CupertinoIcons.chevron_right,
+                                            size: 20),
+                                      ],
+                                    ),
                                   ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(20),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF10B981)
-                                            .withAlpha(26),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: const Icon(
-                                        CupertinoIcons.flame_fill,
-                                        color: Color(0xFF10B981),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            session.name,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            DateFormat('MMM d, yyyy • HH:mm')
-                                                .format(session.date),
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium,
-                                          ),
-                                          if (session.durationMinutes !=
-                                              null) ...[
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              '${session.durationMinutes} minutes',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
-                                                    color:
-                                                        const Color(0xFF10B981),
-                                                  ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                    const Icon(CupertinoIcons.chevron_right,
-                                        size: 20),
-                                  ],
                                 ),
                               ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) => Center(child: Text('Error: $error')),
+                            );
+                          }).toList(),
+                        );
+                      },
+                      loading: () => const Padding(
+                        padding: EdgeInsets.all(40),
+                        child: CircularProgressIndicator(
+                            valueColor:
+                                AlwaysStoppedAnimation(Color(0xFF10B981))),
+                      ),
+                      error: (error, _) => Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text('Error: $error'),
+                      ),
+                    ),
+                    const SizedBox(height: 100),
+                  ],
+                ),
               ),
             ),
           ],
@@ -381,21 +341,19 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
                   width: 40,
                   child: Text(
                     days[index],
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight:
-                              isToday ? FontWeight.bold : FontWeight.normal,
-                        ),
+                    style: TextStyle(
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     split[index],
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight:
-                              isToday ? FontWeight.bold : FontWeight.normal,
-                          color: isToday ? const Color(0xFF10B981) : null,
-                        ),
+                    style: TextStyle(
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                      color: isToday ? const Color(0xFF10B981) : Colors.black87,
+                    ),
                   ),
                 ),
                 if (isToday)
@@ -409,10 +367,9 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
                     child: const Text(
                       'Today',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
               ],
@@ -452,9 +409,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              const Text(
                 'Select Exercise',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -497,14 +454,14 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              const Text(
                 'Add Set',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
                 exercise.name,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
               ),
               const SizedBox(height: 20),
               TextField(
@@ -554,13 +511,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
 
                         final database = ref.read(databaseProvider);
 
-                        // Check for PR
                         final previousPR =
                             await database.getPersonalRecord(exercise.id);
                         final isPR =
                             previousPR == null || weight > previousPR.weight;
 
-                        // Get current set number for this exercise in this session
                         final existingSets =
                             await database.getSetsForSession(widget.sessionId);
                         final exerciseSets = existingSets
@@ -583,10 +538,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
                           if (!context.mounted) return;
                           Navigator.of(context).pop();
                           if (isPR) {
-                            showConfettiAnimation(context);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('🎉 New PR! ${weight}kg x $reps'),
+                                content: Text('New PR! ${weight}kg x $reps'),
                                 backgroundColor: AppColors.success,
                               ),
                             );
@@ -609,7 +563,9 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
     final database = ref.watch(databaseProvider);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title: const Text('Workout Session'),
         actions: [
           IconButton(
@@ -630,31 +586,21 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
           final sets = snapshot.data!;
 
           if (sets.isEmpty) {
-            return Center(
+            return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    CupertinoIcons.add_circled,
-                    size: 64,
-                    color: Color(0xFF10B981),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No exercises yet',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Add your first exercise!',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
+                  Icon(CupertinoIcons.add_circled,
+                      size: 64, color: Color(0xFF10B981)),
+                  SizedBox(height: 16),
+                  Text('No exercises yet', style: TextStyle(fontSize: 18)),
+                  SizedBox(height: 8),
+                  Text('Add your first exercise!'),
                 ],
               ),
             );
           }
 
-          // Group sets by exercise
           final groupedSets = <int, List<WorkoutSet>>{};
           for (final set in sets) {
             groupedSets.putIfAbsent(set.exerciseId, () => []).add(set);
@@ -669,11 +615,16 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
 
               return FutureBuilder<Exercise?>(
                 future: database.select(database.exercises).get().then(
-                      (exercises) =>
-                          exercises.firstWhere((e) => e.id == exerciseId),
+                      (exercises) => exercises.cast<Exercise?>().firstWhere(
+                            (e) => e?.id == exerciseId,
+                            orElse: () => null,
+                          ),
                     ),
                 builder: (context, exerciseSnapshot) {
-                  if (!exerciseSnapshot.hasData) return const SizedBox();
+                  if (!exerciseSnapshot.hasData ||
+                      exerciseSnapshot.data == null) {
+                    return const SizedBox();
+                  }
 
                   final exercise = exerciseSnapshot.data!;
 
@@ -687,28 +638,20 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
                           children: [
                             Text(
                               exercise.name,
-                              style: Theme.of(context).textTheme.titleLarge,
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 12),
                             ...exerciseSets.map((set) => Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: Row(
                                     children: [
-                                      Text(
-                                        'Set ${set.setNumber}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
-                                      ),
+                                      Text('Set ${set.setNumber}'),
                                       const Spacer(),
                                       Text(
                                         '${set.weight}kg × ${set.reps}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold),
                                       ),
                                       if (set.isPR) ...[
                                         const SizedBox(width: 8),
@@ -755,3 +698,4 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
     );
   }
 }
+

@@ -16,6 +16,7 @@ class SettingsScreen extends ConsumerWidget {
     final goalWeight = ref.watch(goalWeightProvider);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(

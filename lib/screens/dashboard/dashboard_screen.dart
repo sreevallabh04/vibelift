@@ -1,15 +1,39 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
-import 'package:vibelift/core/constants.dart';
-import 'package:vibelift/core/theme/app_colors.dart';
-import 'package:vibelift/data/models/meal_macros.dart';
-import 'package:vibelift/data/db/database.dart';
-import 'package:vibelift/data/providers/database_provider.dart';
-import 'package:vibelift/widgets/animated_progress_ring.dart';
-import 'package:vibelift/widgets/stat_card.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
+import 'package:vibelift/core/theme/app_colors.dart';
+import 'package:vibelift/data/db/database.dart';
+import 'package:vibelift/data/models/meal_macros.dart';
+import 'package:vibelift/data/providers/database_provider.dart';
+import 'package:vibelift/data/providers/health_provider.dart';
+import 'package:vibelift/screens/health_connect/health_connect_screen.dart';
+
+final todayMealsProvider = StreamProvider<List<Meal>>((ref) {
+  final db = ref.watch(databaseProvider);
+  final today = DateTime.now();
+  final startOfDay = DateTime(today.year, today.month, today.day);
+  return db.watchMealsForDate(startOfDay);
+});
+
+final weightEntriesProvider = StreamProvider<List<WeightEntry>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.watchAllWeightEntries();
+});
+
+final latestWeightProvider = StreamProvider<WeightEntry?>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.watchLatestWeight();
+});
+
+final todayWorkoutSessionsProvider =
+    StreamProvider<List<WorkoutSession>>((ref) {
+  final db = ref.watch(databaseProvider);
+  final today = DateTime.now();
+  final startOfDay = DateTime(today.year, today.month, today.day);
+  return db.watchWorkoutSessionsForDate(startOfDay);
+});
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -18,19 +42,22 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final todayMealsAsync = ref.watch(todayMealsProvider);
     final latestWeightAsync = ref.watch(latestWeightProvider);
-    final todayWorkoutsAsync = ref.watch(todayWorkoutSessionsProvider);
+    final todayStepsAsync = ref.watch(todayStepsProvider);
+    final todayCaloriesAsync = ref.watch(todayCaloriesProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.lightBackground,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(todayMealsProvider);
+            ref.invalidate(weightEntriesProvider);
             ref.invalidate(latestWeightProvider);
             ref.invalidate(todayWorkoutSessionsProvider);
           },
           child: CustomScrollView(
             slivers: [
-              // App Bar
+              // Header Section
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -39,48 +66,50 @@ class DashboardScreen extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ShaderMask(
-                                shaderCallback: (bounds) =>
-                                    const LinearGradient(
-                                  colors: [
-                                    Color(0xFF10B981),
-                                    Color(0xFF34D399)
-                                  ],
-                                ).createShader(bounds),
-                                child: Text(
-                                  'VibeLift',
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.lightPrimary,
+                                width: 2,
+                              ),
+                            ),
+                            child: const CircleAvatar(
+                              radius: 24,
+                              backgroundColor: AppColors.lightPrimary,
+                              child: Icon(
+                                CupertinoIcons.person_fill,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Hey, Michelle',
                                   style: Theme.of(context)
                                       .textTheme
-                                      .displayMedium
+                                      .titleLarge
                                       ?.copyWith(
-                                        color: Colors.white,
                                         fontWeight: FontWeight.bold,
+                                        fontSize: 24,
                                       ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateFormat.yMMMMEEEEd().format(DateTime.now()),
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withAlpha(26),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              CupertinoIcons.bell,
-                              size: 24,
-                              color: Color(0xFF10B981),
+                                const Text(
+                                  'Welcome, 11-week.\nKeep keep going!',
+                                  style: TextStyle(
+                                    color: AppColors.lightTextSecondary,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                          _buildStreakBadge(),
                         ],
                       ),
                     ],
@@ -88,7 +117,24 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
 
-              // Today's Macros Section
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+              // Weight Card
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: latestWeightAsync.when(
+                    data: (weight) => _buildWeightCard(context, weight, ref),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, __) => const SizedBox(),
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+              // Activity Summary Card
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -106,245 +152,102 @@ class DashboardScreen extends ConsumerWidget {
                               calories: meal.calories,
                             ),
                       );
-
-                      return _buildMacrosCard(context, totalMacros);
+                      return _buildActivitySummaryCard(context, totalMacros);
                     },
-                    loading: () => _buildMacrosCard(context, MealMacros.zero()),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (_, __) =>
-                        _buildMacrosCard(context, MealMacros.zero()),
+                        _buildActivitySummaryCard(context, MealMacros.zero()),
                   ),
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Weight Progress Chart
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ref.watch(weightEntriesProvider).when(
-                        data: (entries) {
-                          if (entries.length < 2) {
-                            return const SizedBox();
-                          }
-                          return _buildWeightProgressCard(
-                              entries.reversed.take(10).toList());
-                        },
-                        loading: () => const SizedBox(),
-                        error: (_, __) => const SizedBox(),
-                      ),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // Quick Stats Grid
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Quick Stats',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: latestWeightAsync.when(
-                              data: (weight) => StatCard(
-                                title: 'Current Weight',
-                                value: weight != null
-                                    ? '${weight.weight.toStringAsFixed(1)} kg'
-                                    : '--',
-                                icon: CupertinoIcons.gauge,
-                                color: const Color(0xFF10B981),
-                              ),
-                              loading: () => const StatCard(
-                                title: 'Current Weight',
-                                value: '--',
-                                icon: CupertinoIcons.gauge,
-                                color: Color(0xFF10B981),
-                              ),
-                              error: (_, __) => const StatCard(
-                                title: 'Current Weight',
-                                value: '--',
-                                icon: CupertinoIcons.gauge,
-                                color: Color(0xFF10B981),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: todayWorkoutsAsync.when(
-                              data: (workouts) => StatCard(
-                                title: 'Workouts',
-                                value: '${workouts.length}',
-                                subtitle: 'Today',
-                                icon: CupertinoIcons.flame_fill,
-                                color: const Color(0xFF10B981),
-                              ),
-                              loading: () => const StatCard(
-                                title: 'Workouts',
-                                value: '0',
-                                subtitle: 'Today',
-                                icon: CupertinoIcons.flame_fill,
-                                color: Color(0xFF10B981),
-                              ),
-                              error: (_, __) => const StatCard(
-                                title: 'Workouts',
-                                value: '0',
-                                subtitle: 'Today',
-                                icon: CupertinoIcons.flame_fill,
-                                color: Color(0xFF10B981),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // Recent Meals
+              // Quick Stats
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     children: [
-                      Text(
-                        'Recent Meals',
-                        style: Theme.of(context).textTheme.titleLarge,
+                      Expanded(
+                        child: _buildQuickStatCard(
+                          context,
+                          '450',
+                          'kcal',
+                          'Duration',
+                          AppColors.proteinColor,
+                        ),
                       ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () {},
-                        child: const Text('See All'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildQuickStatCard(
+                          context,
+                          '72',
+                          'min',
+                          'Workouts',
+                          AppColors.terracotta,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
 
-              todayMealsAsync.when(
-                data: (meals) {
-                  if (meals.isEmpty) {
-                    return SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(40),
-                        child: Column(
-                          children: [
-                            Icon(
-                              CupertinoIcons.tray,
-                              size: 64,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.color
-                                  ?.withAlpha(77),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No meals logged yet',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final meal = meals[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 8),
-                          child: Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        CupertinoIcons.circle_fill,
-                                        size: 12,
-                                        color: Color(0xFF10B981),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          meal.description,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyLarge
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                      ),
-                                      Text(
-                                        DateFormat('HH:mm')
-                                            .format(meal.createdAt),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      _buildMacroChip(
-                                          'P: ${meal.protein.toStringAsFixed(0)}g',
-                                          AppColors.proteinColor),
-                                      const SizedBox(width: 8),
-                                      _buildMacroChip(
-                                          'C: ${meal.carbs.toStringAsFixed(0)}g',
-                                          AppColors.carbsColor),
-                                      const SizedBox(width: 8),
-                                      _buildMacroChip(
-                                          'F: ${meal.fats.toStringAsFixed(0)}g',
-                                          AppColors.fatsColor),
-                                      const Spacer(),
-                                      Text(
-                                        '${meal.calories.toStringAsFixed(0)} cal',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
+              // Today's Goals Section
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            CupertinoIcons.checkmark_shield_fill,
+                            color: AppColors.lightPrimary,
+                            size: 24,
                           ),
-                        );
-                      },
-                      childCount: meals.length > 3 ? 3 : meals.length,
-                    ),
-                  );
-                },
-                loading: () => const SliverToBoxAdapter(
-                  child: Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: CircularProgressIndicator(),
-                    ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Today\'s Goals',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        icon: const Icon(CupertinoIcons.add_circled_solid),
+                        color: AppColors.lightPrimary,
+                      ),
+                    ],
                   ),
                 ),
-                error: (_, __) => const SliverToBoxAdapter(child: SizedBox()),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+              // Goal Items
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      _buildGoalItem(context, 'Gym Workout', false),
+                      const SizedBox(height: 8),
+                      _buildGoalItem(context, 'Log meals', true),
+                      const SizedBox(height: 8),
+                      _buildGoalItem(context, 'Track weight', false),
+                    ],
+                  ),
+                ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -355,129 +258,32 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMacrosCard(BuildContext context, MealMacros macros) {
-    final proteinProgress =
-        (macros.protein / AppConstants.defaultProteinGoal).clamp(0.0, 1.0);
-    final carbsProgress =
-        (macros.carbs / AppConstants.defaultCarbsGoal).clamp(0.0, 1.0);
-    final fatsProgress =
-        (macros.fats / AppConstants.defaultFatsGoal).clamp(0.0, 1.0);
-    final caloriesProgress =
-        (macros.calories / AppConstants.defaultCaloriesGoal).clamp(0.0, 1.0);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Today\'s Nutrition',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                AnimatedProgressRing(
-                  progress: caloriesProgress,
-                  color: AppColors.caloriesColor,
-                  backgroundColor: AppColors.caloriesColor.withAlpha(26),
-                  size: 100,
-                  strokeWidth: 10,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        macros.calories.toStringAsFixed(0),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      Text(
-                        'Calories',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontSize: 10,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildMacroRow(
-                      context,
-                      'Protein',
-                      macros.protein,
-                      AppConstants.defaultProteinGoal,
-                      proteinProgress,
-                      AppColors.proteinColor,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMacroRow(
-                      context,
-                      'Carbs',
-                      macros.carbs,
-                      AppConstants.defaultCarbsGoal,
-                      carbsProgress,
-                      AppColors.carbsColor,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMacroRow(
-                      context,
-                      'Fats',
-                      macros.fats,
-                      AppConstants.defaultFatsGoal,
-                      fatsProgress,
-                      AppColors.fatsColor,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMacroRow(
-    BuildContext context,
-    String label,
-    double value,
-    double goal,
-    double progress,
-    Color color,
-  ) {
-    return SizedBox(
-      width: 140,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              Text(
-                '${value.toStringAsFixed(0)}/${goal.toStringAsFixed(0)}g',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ],
+  Widget _buildStreakBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: color.withAlpha(26),
-              valueColor: AlwaysStoppedAnimation(color),
-              minHeight: 6,
+        ],
+      ),
+      child: Row(
+        children: const [
+          Text(
+            '🔥',
+            style: TextStyle(fontSize: 16),
+          ),
+          SizedBox(width: 4),
+          Text(
+            '11',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
             ),
           ),
         ],
@@ -485,25 +291,76 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMacroChip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha(26),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: color,
+  Widget _buildWeightCard(
+      BuildContext context, WeightEntry? weight, WidgetRef ref) {
+    final weightEntriesAsync = ref.watch(weightEntriesProvider);
+
+    return weightEntriesAsync.when(
+      data: (entries) {
+        if (entries.length < 2) {
+          return _buildSimpleWeightCard(context, weight);
+        }
+        return _buildWeightChartCard(context, weight, entries);
+      },
+      loading: () => _buildSimpleWeightCard(context, weight),
+      error: (_, __) => _buildSimpleWeightCard(context, weight),
+    );
+  }
+
+  Widget _buildSimpleWeightCard(BuildContext context, WeightEntry? weight) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.lightPrimary.withAlpha(25),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                CupertinoIcons.gauge_badge_plus,
+                color: AppColors.lightPrimary,
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Current Weight',
+                    style: TextStyle(
+                      color: AppColors.lightTextSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    weight != null
+                        ? '${weight.weight.toStringAsFixed(1)} kg'
+                        : 'Not logged',
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.lightPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildWeightProgressCard(List<WeightEntry> entries) {
+  Widget _buildWeightChartCard(
+      BuildContext context, WeightEntry? weight, List<WeightEntry> entries) {
+    final recentEntries = entries.reversed.take(7).toList();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -511,34 +368,53 @@ class DashboardScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(
-                  CupertinoIcons.chart_bar_alt_fill,
-                  color: Color(0xFF10B981),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Weight Progress',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      weight != null
+                          ? '${weight.weight.toStringAsFixed(1)} kg'
+                          : 'No data',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.lightPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Weight Progress',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightPrimary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-                const Spacer(),
-                Text(
-                  '${entries.first.weight.toStringAsFixed(1)} kg',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF10B981),
+                  child: const Text(
+                    'Week',
+                    style: TextStyle(
+                      color: AppColors.lightPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
             SizedBox(
-              height: 150,
-              child: _buildWeightChart(entries),
+              height: 120,
+              child: _buildWeightBarChart(recentEntries),
             ),
           ],
         ),
@@ -546,91 +422,372 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildWeightChart(List<WeightEntry> entries) {
-    final spots = entries.asMap().entries.map((e) {
-      return FlSpot(e.key.toDouble(), e.value.weight);
-    }).toList();
+  Widget _buildWeightBarChart(List<WeightEntry> entries) {
+    if (entries.isEmpty) return const SizedBox();
 
-    final minWeight =
-        entries.map((e) => e.weight).reduce((a, b) => a < b ? a : b);
-    final maxWeight =
-        entries.map((e) => e.weight).reduce((a, b) => a > b ? a : b);
-    final padding = (maxWeight - minWeight) * 0.2;
+    final weights = entries.map((e) => e.weight).toList();
+    final maxWeight = weights.reduce((a, b) => a > b ? a : b);
+    final minWeight = weights.reduce((a, b) => a < b ? a : b);
+    final range = maxWeight - minWeight;
+    final padding = range * 0.2;
 
-    return LineChart(
-      LineChartData(
-        gridData: const FlGridData(show: true, drawVerticalLine: false),
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxWeight + padding,
+        minY: minWeight - padding,
+        barTouchData: BarTouchData(enabled: false),
         titlesData: FlTitlesData(
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 42,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  '${value.toInt()}kg',
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                );
-              },
-            ),
-          ),
+          show: true,
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (value, meta) {
-                if (value.toInt() >= entries.length) return const Text('');
-                final date = entries[value.toInt()].date;
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    DateFormat('M/d').format(date),
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
-                );
+                final index = value.toInt();
+                if (index >= 0 && index < entries.length) {
+                  final day = DateFormat('E').format(entries[index].date);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      day.substring(0, 3),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.lightTextSecondary,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox();
               },
             ),
           ),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
+        gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
-        minX: 0,
-        maxX: (entries.length - 1).toDouble(),
-        minY: minWeight - padding,
-        maxY: maxWeight + padding,
-        lineBarsData: [
-          LineChartBarData(
-            spots: spots,
-            isCurved: true,
-            gradient: const LinearGradient(
-              colors: [Color(0xFF10B981), Color(0xFF059669)],
+        barGroups: entries.asMap().entries.map((entry) {
+          final index = entry.key;
+          final weight = entry.value.weight;
+          final isToday = entry.value.date.day == DateTime.now().day;
+
+          return BarChartGroupData(
+            x: index,
+            barRods: [
+              BarChartRodData(
+                toY: weight,
+                color: isToday ? AppColors.terracotta : AppColors.lightPrimary,
+                width: 16,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildActivitySummaryCard(BuildContext context, MealMacros macros) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Activity Summary',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            barWidth: 3,
-            dotData: FlDotData(
-              show: true,
-              getDotPainter: (spot, percent, barData, index) {
-                return FlDotCirclePainter(
-                  radius: 4,
-                  color: const Color(0xFF10B981),
-                  strokeWidth: 2,
-                  strokeColor: Colors.white,
-                );
-              },
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            CupertinoIcons.flame_fill,
+                            color: AppColors.terracotta,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Calories',
+                            style: TextStyle(
+                              color: AppColors.lightTextSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${macros.calories.toInt()}',
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'kcal',
+                        style: TextStyle(
+                          color: AppColors.lightTextSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: Stack(
+                    children: [
+                      CircularProgressIndicator(
+                        value: (macros.calories / 2000).clamp(0.0, 1.0),
+                        strokeWidth: 8,
+                        backgroundColor: AppColors.beigeLight,
+                        valueColor: const AlwaysStoppedAnimation(
+                            AppColors.lightPrimary),
+                      ),
+                      Center(
+                        child: Text(
+                          '${((macros.calories / 2000) * 100).toInt()}%',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.lightPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF10B981).withAlpha(77),
-                  const Color(0xFF10B981).withAlpha(0),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildMacroIndicator(
+                    'Protein', macros.protein, AppColors.proteinColor),
+                _buildMacroIndicator(
+                    'Carbs', macros.carbs, AppColors.carbsColor),
+                _buildMacroIndicator('Fats', macros.fats, AppColors.fatsColor),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMacroIndicator(String label, double value, Color color) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withAlpha(25),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '${value.toInt()}g',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.lightTextSecondary,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickStatCard(BuildContext context, String value, String unit,
+      String label, Color color) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withAlpha(25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                label == 'Duration'
+                    ? CupertinoIcons.timer
+                    : CupertinoIcons.bolt_fill,
+                color: color,
+                size: 20,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    unit,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: color,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.lightTextSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGoalItem(BuildContext context, String title, bool isComplete) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isComplete ? AppColors.lightPrimary : AppColors.beigeLight,
+          width: 2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: isComplete ? AppColors.lightPrimary : Colors.transparent,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isComplete
+                    ? AppColors.lightPrimary
+                    : AppColors.lightTextSecondary,
+                width: 2,
+              ),
+            ),
+            child: Icon(
+              isComplete ? Icons.check : null,
+              color: Colors.white,
+              size: 12,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                decoration: isComplete ? TextDecoration.lineThrough : null,
+                color: isComplete
+                    ? AppColors.lightTextSecondary
+                    : AppColors.lightText,
               ),
             ),
           ),
+          if (isComplete)
+            const Text(
+              'Complete',
+              style: TextStyle(
+                color: AppColors.lightPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHealthStatCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withAlpha(25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 20,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.lightTextSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

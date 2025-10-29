@@ -19,9 +19,9 @@ class AppTheme {
       color: AppColors.lightCard,
       elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
       ),
-      shadowColor: AppColors.lightText.withAlpha(13),
+      shadowColor: Colors.black.withAlpha(15),
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.lightBackground,
@@ -97,19 +97,17 @@ class AppTheme {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.lightCard,
+      fillColor: Colors.white,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide:
-            BorderSide(color: AppColors.lightTextSecondary.withAlpha(51)),
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide:
-            BorderSide(color: AppColors.lightTextSecondary.withAlpha(51)),
+        borderRadius: BorderRadius.circular(20),
+        borderSide: const BorderSide(color: AppColors.beigeLight),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         borderSide: const BorderSide(color: AppColors.lightPrimary, width: 2),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

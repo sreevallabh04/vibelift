@@ -131,6 +131,7 @@ class _WeightTrackerScreenState extends ConsumerState<WeightTrackerScreen> {
     final goalWeight = ref.watch(goalWeightProvider);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [

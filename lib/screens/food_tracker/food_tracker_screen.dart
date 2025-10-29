@@ -185,6 +185,7 @@ class _FoodTrackerScreenState extends ConsumerState<FoodTrackerScreen> {
     final favoriteMealsAsync = ref.watch(favoriteMealsProvider);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
