@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibelift/core/theme/app_theme.dart';
 import 'package:vibelift/data/providers/settings_provider.dart';
+
 import 'package:vibelift/screens/splash/splash_screen.dart';
 import 'package:vibelift/screens/dashboard/dashboard_screen.dart';
 import 'package:vibelift/screens/food_tracker/food_tracker_screen.dart';

@@ -5,9 +5,11 @@ import 'package:intl/intl.dart';
 import 'package:vibelift/core/constants.dart';
 import 'package:vibelift/core/theme/app_colors.dart';
 import 'package:vibelift/data/models/meal_macros.dart';
+import 'package:vibelift/data/db/database.dart';
 import 'package:vibelift/data/providers/database_provider.dart';
 import 'package:vibelift/widgets/animated_progress_ring.dart';
 import 'package:vibelift/widgets/stat_card.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -111,6 +113,26 @@ class DashboardScreen extends ConsumerWidget {
                     error: (_, __) =>
                         _buildMacrosCard(context, MealMacros.zero()),
                   ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // Weight Progress Chart
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: ref.watch(weightEntriesProvider).when(
+                        data: (entries) {
+                          if (entries.length < 2) {
+                            return const SizedBox();
+                          }
+                          return _buildWeightProgressCard(
+                              entries.reversed.take(10).toList());
+                        },
+                        loading: () => const SizedBox(),
+                        error: (_, __) => const SizedBox(),
+                      ),
                 ),
               ),
 
@@ -477,6 +499,138 @@ class DashboardScreen extends ConsumerWidget {
           fontWeight: FontWeight.w600,
           color: color,
         ),
+      ),
+    );
+  }
+
+  Widget _buildWeightProgressCard(List<WeightEntry> entries) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  CupertinoIcons.chart_bar_alt_fill,
+                  color: Color(0xFF10B981),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Weight Progress',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${entries.first.weight.toStringAsFixed(1)} kg',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF10B981),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 150,
+              child: _buildWeightChart(entries),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeightChart(List<WeightEntry> entries) {
+    final spots = entries.asMap().entries.map((e) {
+      return FlSpot(e.key.toDouble(), e.value.weight);
+    }).toList();
+
+    final minWeight =
+        entries.map((e) => e.weight).reduce((a, b) => a < b ? a : b);
+    final maxWeight =
+        entries.map((e) => e.weight).reduce((a, b) => a > b ? a : b);
+    final padding = (maxWeight - minWeight) * 0.2;
+
+    return LineChart(
+      LineChartData(
+        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 42,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  '${value.toInt()}kg',
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                );
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() >= entries.length) return const Text('');
+                final date = entries[value.toInt()].date;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    DateFormat('M/d').format(date),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                );
+              },
+            ),
+          ),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        borderData: FlBorderData(show: false),
+        minX: 0,
+        maxX: (entries.length - 1).toDouble(),
+        minY: minWeight - padding,
+        maxY: maxWeight + padding,
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF10B981), Color(0xFF059669)],
+            ),
+            barWidth: 3,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                return FlDotCirclePainter(
+                  radius: 4,
+                  color: const Color(0xFF10B981),
+                  strokeWidth: 2,
+                  strokeColor: Colors.white,
+                );
+              },
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF10B981).withAlpha(77),
+                  const Color(0xFF10B981).withAlpha(0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

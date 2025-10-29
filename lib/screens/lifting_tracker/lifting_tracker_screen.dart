@@ -114,36 +114,56 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
   @override
   Widget build(BuildContext context) {
     final workoutSessionsAsync = ref.watch(workoutSessionsProvider);
-    final fitnessGoal = ref.watch(fitnessGoalProvider);
+    final pplSplit = AppConstants.workoutSplits['PPL']!;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
             // Header
-            Padding(
+            Container(
               padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFF0FDF4), Colors.white],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
               child: Row(
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Lifting Tracker',
-                        style: Theme.of(context).textTheme.displaySmall,
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Color(0xFF10B981), Color(0xFF059669)],
+                        ).createShader(bounds),
+                        child: const Text(
+                          'Workout Tracker',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'Goal: $fitnessGoal',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.lightPrimary,
-                            ),
+                      const Text(
+                        'Push Pull Legs Split',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF059669),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
                   const Spacer(),
                   CustomIconButton(
                     icon: CupertinoIcons.add,
+                    color: const Color(0xFF10B981),
                     onPressed: _showStartWorkoutDialog,
                   ),
                 ],
@@ -159,12 +179,15 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Weekly Split',
-                        style: Theme.of(context).textTheme.titleLarge,
+                      const Text(
+                        'PPL Weekly Split',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      _buildWeeklySplit(fitnessGoal),
+                      _buildWeeklySplit(pplSplit),
                     ],
                   ),
                 ),
@@ -304,7 +327,7 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
                                                   .bodyMedium
                                                   ?.copyWith(
                                                     color:
-                                                        AppColors.lightPrimary,
+                                                        const Color(0xFF10B981),
                                                   ),
                                             ),
                                           ],
@@ -333,14 +356,12 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
     );
   }
 
-  Widget _buildWeeklySplit(String goal) {
-    final split =
-        AppConstants.workoutSplits[goal] ?? AppConstants.workoutSplits['Bulk']!;
+  Widget _buildWeeklySplit(List<String> split) {
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     return Column(
-      children: List.generate(split.length, (index) {
-        final isToday = DateTime.now().weekday - 1 == index;
+      children: List.generate(7, (index) {
+        final isToday = (DateTime.now().weekday - 1) % 7 == index;
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Container(
@@ -348,7 +369,7 @@ class _LiftingTrackerScreenState extends ConsumerState<LiftingTrackerScreen> {
             decoration: BoxDecoration(
               color: isToday
                   ? const Color(0xFF10B981).withAlpha(26)
-                  : Theme.of(context).cardColor.withAlpha(128),
+                  : const Color(0xFFF8FAFB),
               borderRadius: BorderRadius.circular(12),
               border: isToday
                   ? Border.all(color: const Color(0xFF10B981), width: 2)
