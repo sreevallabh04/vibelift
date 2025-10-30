@@ -44,6 +44,10 @@ class DashboardScreen extends ConsumerWidget {
     final latestWeightAsync = ref.watch(latestWeightProvider);
     final todayStepsAsync = ref.watch(todayStepsProvider);
     final todayCaloriesAsync = ref.watch(todayCaloriesProvider);
+    final latestHealthWeightAsync = ref.watch(latestHealthWeightProvider);
+    final todayWorkoutsAsync = ref.watch(todayWorkoutsProvider);
+    final streakAsync = ref.watch(currentStreakProvider);
+    // Health stats providers are available; wire into UI where needed
 
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
@@ -90,7 +94,7 @@ class DashboardScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Hey, Michelle',
+                                  'Welcome back',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleLarge
@@ -99,9 +103,10 @@ class DashboardScreen extends ConsumerWidget {
                                         fontSize: 24,
                                       ),
                                 ),
-                                const Text(
-                                  'Welcome, 11-week.\nKeep keep going!',
-                                  style: TextStyle(
+                                Text(
+                                  DateFormat.yMMMMEEEEd()
+                                      .format(DateTime.now()),
+                                  style: const TextStyle(
                                     color: AppColors.lightTextSecondary,
                                     fontSize: 13,
                                   ),
@@ -109,7 +114,45 @@ class DashboardScreen extends ConsumerWidget {
                               ],
                             ),
                           ),
-                          _buildStreakBadge(),
+                          streakAsync.when(
+                            data: (streak) => _buildStreakBadge(streak),
+                            loading: () => const SizedBox.shrink(),
+                            error: (_, __) => const SizedBox.shrink(),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const HealthConnectScreen(),
+                                ),
+                              );
+                              ref.invalidate(todayStepsProvider);
+                              ref.invalidate(todayCaloriesProvider);
+                              ref.invalidate(latestHealthWeightProvider);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(15),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                CupertinoIcons.heart_fill,
+                                color: AppColors.terracotta,
+                                size: 20,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -119,12 +162,96 @@ class DashboardScreen extends ConsumerWidget {
 
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-              // Weight Card
+              // Health Stats (Steps & Calories)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: todayStepsAsync.when(
+                          data: (steps) => _buildHealthStatCard(
+                            context,
+                            'Steps',
+                            steps.toString(),
+                            CupertinoIcons.flame_fill,
+                            AppColors.proteinColor,
+                          ),
+                          loading: () => _buildHealthStatCard(
+                            context,
+                            'Steps',
+                            '...',
+                            CupertinoIcons.flame_fill,
+                            AppColors.proteinColor,
+                          ),
+                          error: (_, __) => _buildHealthStatCard(
+                            context,
+                            'Steps',
+                            '0',
+                            CupertinoIcons.flame_fill,
+                            AppColors.proteinColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: todayCaloriesAsync.when(
+                          data: (calories) => _buildHealthStatCard(
+                            context,
+                            'Burned',
+                            '${calories.toInt()} kcal',
+                            CupertinoIcons.bolt_fill,
+                            AppColors.terracotta,
+                          ),
+                          loading: () => _buildHealthStatCard(
+                            context,
+                            'Burned',
+                            '... kcal',
+                            CupertinoIcons.bolt_fill,
+                            AppColors.terracotta,
+                          ),
+                          error: (_, __) => _buildHealthStatCard(
+                            context,
+                            'Burned',
+                            '0 kcal',
+                            CupertinoIcons.bolt_fill,
+                            AppColors.terracotta,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+              // Weight Card (prefers local log; falls back to Health)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: latestWeightAsync.when(
-                    data: (weight) => _buildWeightCard(context, weight, ref),
+                    data: (weight) {
+                      if (weight != null) {
+                        return _buildWeightCard(context, weight, ref);
+                      }
+                      return latestHealthWeightAsync.when(
+                        data: (hw) {
+                          final fallback = hw == null
+                              ? null
+                              : WeightEntry(
+                                  id: -1,
+                                  weight: hw,
+                                  date: DateTime.now(),
+                                  notes: null,
+                                );
+                          return _buildWeightCard(context, fallback, ref);
+                        },
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (_, __) => _buildWeightCard(context, null, ref),
+                      );
+                    },
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (_, __) => const SizedBox(),
@@ -164,37 +291,8 @@ class DashboardScreen extends ConsumerWidget {
 
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-              // Quick Stats
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildQuickStatCard(
-                          context,
-                          '450',
-                          'kcal',
-                          'Duration',
-                          AppColors.proteinColor,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildQuickStatCard(
-                          context,
-                          '72',
-                          'min',
-                          'Workouts',
-                          AppColors.terracotta,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              // Removed mock quick stats; replaced by health stats above
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // Today's Goals Section
               SliverToBoxAdapter(
@@ -205,7 +303,7 @@ class DashboardScreen extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             CupertinoIcons.checkmark_shield_fill,
                             color: AppColors.lightPrimary,
                             size: 24,
@@ -234,17 +332,41 @@ class DashboardScreen extends ConsumerWidget {
 
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-              // Goal Items
+              // Goal Items (dynamic)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     children: [
-                      _buildGoalItem(context, 'Gym Workout', false),
+                      todayWorkoutsAsync.when(
+                        data: (w) =>
+                            _buildGoalItem(context, 'Workout today', w > 0),
+                        loading: () =>
+                            _buildGoalItem(context, 'Workout today', false),
+                        error: (_, __) =>
+                            _buildGoalItem(context, 'Workout today', false),
+                      ),
                       const SizedBox(height: 8),
-                      _buildGoalItem(context, 'Log meals', true),
+                      todayStepsAsync.when(
+                        data: (s) =>
+                            _buildGoalItem(context, '8k steps', s >= 8000),
+                        loading: () =>
+                            _buildGoalItem(context, '8k steps', false),
+                        error: (_, __) =>
+                            _buildGoalItem(context, '8k steps', false),
+                      ),
                       const SizedBox(height: 8),
-                      _buildGoalItem(context, 'Track weight', false),
+                      latestWeightAsync.when(
+                        data: (w) {
+                          final bool done = w != null &&
+                              DateUtils.isSameDay(w.date, DateTime.now());
+                          return _buildGoalItem(context, 'Log weight', done);
+                        },
+                        loading: () =>
+                            _buildGoalItem(context, 'Log weight', false),
+                        error: (_, __) =>
+                            _buildGoalItem(context, 'Log weight', false),
+                      ),
                     ],
                   ),
                 ),
@@ -258,7 +380,8 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStreakBadge() {
+  Widget _buildStreakBadge(int streak) {
+    if (streak <= 0) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -273,15 +396,15 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       child: Row(
-        children: const [
-          Text(
+        children: [
+          const Text(
             '🔥',
             style: TextStyle(fontSize: 16),
           ),
-          SizedBox(width: 4),
+          const SizedBox(width: 4),
           Text(
-            '11',
-            style: TextStyle(
+            '$streak',
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 14,
             ),
@@ -513,8 +636,8 @@ class DashboardScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: const [
+                      const Row(
+                        children: [
                           Icon(
                             CupertinoIcons.flame_fill,
                             color: AppColors.terracotta,
@@ -623,67 +746,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildQuickStatCard(BuildContext context, String value, String unit,
-      String label, Color color) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withAlpha(25),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                label == 'Duration'
-                    ? CupertinoIcons.timer
-                    : CupertinoIcons.bolt_fill,
-                color: color,
-                size: 20,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Text(
-                    unit,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: color,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.lightTextSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Removed legacy quick stat card used for mock data
 
   Widget _buildGoalItem(BuildContext context, String title, bool isComplete) {
     return Container(
