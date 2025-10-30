@@ -1,5 +1,6 @@
 import 'package:health/health.dart';
 import 'dart:developer' as developer;
+import 'package:flutter/services.dart';
 
 class HealthService {
   final Health _health = Health();
@@ -13,6 +14,23 @@ class HealthService {
     HealthDataType.BODY_MASS_INDEX,
     HealthDataType.WORKOUT,
   ];
+
+  static const MethodChannel _platform = MethodChannel('vibelift/health');
+
+  /// Checks if Samsung Health is installed, enabled, and its version.
+  Future<Map<String, dynamic>> getSamsungHealthStatus() async {
+    try {
+      final result = await _platform.invokeMethod('getSamsungHealthStatus');
+      return Map<String, dynamic>.from(result);
+    } catch (e) {
+      return {
+        'installed': false,
+        'enabled': false,
+        'version': 0,
+        'error': e.toString(),
+      };
+    }
+  }
 
   // Request authorization for health data access
   Future<bool> requestAuthorization() async {

@@ -9,6 +9,7 @@ import 'package:vibelift/data/models/meal_macros.dart';
 import 'package:vibelift/data/providers/database_provider.dart';
 import 'package:vibelift/data/providers/health_provider.dart';
 import 'package:vibelift/screens/health_connect/health_connect_screen.dart';
+import 'package:drift/drift.dart' show Value;
 
 final todayMealsProvider = StreamProvider<List<Meal>>((ref) {
   final db = ref.watch(databaseProvider);
@@ -38,6 +39,84 @@ final todayWorkoutSessionsProvider =
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
+  Future<void> _showLogWeightDialog(BuildContext context, WidgetRef ref) async {
+    final db = ref.read(databaseProvider);
+    final health = ref.read(healthServiceProvider);
+    final latest = await db.getLatestWeight();
+    final controller = TextEditingController(
+      text: latest?.weight.toStringAsFixed(1) ?? '',
+    );
+    final notesController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Log weight'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: controller,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Weight (kg)',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter weight';
+                    final d = double.tryParse(v);
+                    if (d == null || d <= 0) return 'Enter a valid number';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: notesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final value = double.parse(controller.text.trim());
+                final now = DateTime.now();
+                await db.insertWeightEntry(
+                  WeightEntriesCompanion.insert(
+                    weight: value,
+                    date: now,
+                    notes: Value(notesController.text.isEmpty
+                        ? null
+                        : notesController.text),
+                  ),
+                );
+                // Best-effort write to Health Connect; ignore errors
+                await health.writeWeight(value, now);
+                if (context.mounted) Navigator.pop(ctx);
+                // Refresh streams
+                ref.invalidate(weightEntriesProvider);
+                ref.invalidate(latestWeightProvider);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final todayMealsAsync = ref.watch(todayMealsProvider);
@@ -51,6 +130,13 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showLogWeightDialog(context, ref),
+        backgroundColor: AppColors.lightPrimary,
+        foregroundColor: Colors.white,
+        icon: const Icon(CupertinoIcons.plus_app),
+        label: const Text('Log weight'),
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
